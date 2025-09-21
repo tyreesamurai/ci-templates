@@ -1,23 +1,40 @@
 name: reusable-build-and-deploy
-
 on:
   workflow_call:
     inputs:
       image_name:
-        description: "owner/repo for GHCR (e.g. tyreesamurai/finance-management)"
-        required: true
-        type: string
+        { description: "GHCR image (owner/name)", required: true, type: string }
       service_dir:
-        description: "Server path with compose.yaml (e.g. /srv/apps/finance-management)"
-        required: true
-        type: string
+        {
+          description: "Remote dir with compose.yaml",
+          required: true,
+          type: string,
+        }
+      context:
+        {
+          description: "Docker build context",
+          required: false,
+          type: string,
+          default: ".",
+        }
+      dockerfile:
+        {
+          description: "Dockerfile path",
+          required: false,
+          type: string,
+          default: "Dockerfile",
+        }
+      build_args:
+        {
+          description: "Extra build args (KEY=VAL,space-separated)",
+          required: false,
+          type: string,
+          default: "",
+        }
     secrets:
-      DEPLOY_HOST:
-        required: true
-      DEPLOY_KEY:
-        required: true
-      TS_AUTHKEY:
-        required: true
+      DEPLOY_HOST: { required: true }
+      DEPLOY_KEY: { required: true }
+      TS_AUTHKEY: { required: true }
 
 env:
   REGISTRY: ghcr.io
