@@ -31,10 +31,6 @@ on:
           type: string,
           default: "",
         }
-    secrets:
-      DEPLOY_HOST: { required: true }
-      DEPLOY_KEY: { required: true }
-      TS_AUTHKEY: { required: true }
 
 env:
   REGISTRY: ghcr.io
