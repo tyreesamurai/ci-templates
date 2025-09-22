@@ -58,18 +58,17 @@ jobs:
             done
           fi
 
-          # Sanity checks
-          if [ ! -d "$CTX" ]; then
-            echo "Build context not found: $CTX" >&2
-            exit 1
-          fi
-          if [ ! -f "$CTX/$DF" ]; then
-            echo "Dockerfile not found at: $CTX/$DF" >&2
-            exit 1
-          fi
+          echo "=> ls of context:"
+          ls -la "$CTX"
 
-          echo "=> Building $REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA from context: $CTX"
-          docker build -f "$DF" $EXTRA_ARGS \
+          # Sanity checks
+          [ -d "$CTX" ] || { echo "Build context not found: $CTX" >&2; exit 1; }
+          [ -f "$CTX/$DF" ] || { echo "Dockerfile not found: $CTX/$DF" >&2; exit 1; }
+
+          echo "=> Building $REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA"
+          docker build \
+            -f "$CTX/$DF" \            # << key change: path relative to repo root
+            $EXTRA_ARGS \
             -t "$REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA" \
             "$CTX"
 
