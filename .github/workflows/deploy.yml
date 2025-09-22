@@ -3,34 +3,23 @@ on:
   workflow_call:
     inputs:
       image_name:
-        { description: "GHCR image (owner/name)", required: true, type: string }
+        description: "GHCR image (owner/name)"
+        required: true
+        type: string
       service_dir:
-        {
-          description: "Remote dir with compose.yaml",
-          required: true,
-          type: string,
-        }
+        description: "Remote dir with compose.yaml"
+        required: true
+        type: string
       context:
-        {
-          description: "Docker build context",
-          required: false,
-          type: string,
-          default: ".",
-        }
-      dockerfile:
-        {
-          description: "Dockerfile path",
-          required: false,
-          type: string,
-          default: "Dockerfile",
-        }
+        description: "Docker build context folder (contains Dockerfile)"
+        required: false
+        type: string
+        default: "."
       build_args:
-        {
-          description: "Extra build args (KEY=VAL,space-separated)",
-          required: false,
-          type: string,
-          default: "",
-        }
+        description: "Extra build args (KEY=VAL, space-separated)"
+        required: false
+        type: string
+        default: ""
     secrets:
       DEPLOY_HOST: { required: true }
       DEPLOY_KEY: { required: true }
@@ -57,8 +46,35 @@ jobs:
 
       - name: Build & tag
         run: |
-          docker build -t $REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA .
-          docker tag  $REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA $REGISTRY/${{ inputs.image_name }}:latest
+          set -euo pipefail
+          CTX="${{ inputs.context }}"
+          DF="Dockerfile"
+
+          # Optional build args
+          EXTRA_ARGS=""
+          if [ -n "${{ inputs.build_args }}" ]; then
+            for kv in ${{ inputs.build_args }}; do
+              EXTRA_ARGS="$EXTRA_ARGS --build-arg $kv"
+            done
+          fi
+
+          # Sanity checks
+          if [ ! -d "$CTX" ]; then
+            echo "Build context not found: $CTX" >&2
+            exit 1
+          fi
+          if [ ! -f "$CTX/$DF" ]; then
+            echo "Dockerfile not found at: $CTX/$DF" >&2
+            exit 1
+          fi
+
+          echo "=> Building $REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA from context: $CTX"
+          docker build -f "$DF" $EXTRA_ARGS \
+            -t "$REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA" \
+            "$CTX"
+
+          docker tag "$REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA" \
+                    "$REGISTRY/${{ inputs.image_name }}:latest"
 
       - name: Push
         run: |
