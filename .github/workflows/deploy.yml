@@ -67,7 +67,7 @@ jobs:
 
           echo "=> Building $REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA"
           docker build \
-            -f "$CTX/$DF" \            # << key change: path relative to repo root
+            -f "$CTX/$DF" \
             $EXTRA_ARGS \
             -t "$REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA" \
             "$CTX"
