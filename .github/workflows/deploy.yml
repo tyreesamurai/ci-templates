@@ -43,6 +43,7 @@ on:
       DEPLOY_HOST: { required: true }
       DEPLOY_KEY: { required: true }
       TS_AUTHKEY: { required: true }
+      ENV_FILE: { required: false }
 
 env:
   REGISTRY: ghcr.io
@@ -130,7 +131,7 @@ jobs:
             ${{ secrets.ENV_FILE }}
             ENVEOF
 
-            kubectl -n "${{ inputs.namespace }}" create secret generic "${{ inputs.secrets_name }}" \
+            kubectl -n "${{ inputs.namespace }}" create secret generic "${{ inputs.secret_name }}" \
               --from-env-file="$tmpfile" \
               --dry-run=client -o yaml | kubectl apply -f -
 
