@@ -114,8 +114,10 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
 
       - name: Apply Kubernetes secret from .env (optional)
-        if: ${{ secrets.ENV_FILE != '' }}
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+          SECRET_NAME: ${{ inputs.secret_name || 'app-env' }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: deploy
@@ -125,6 +127,11 @@ jobs:
           script: |
             set -euo pipefail
             kubectl config use-context "${{ inputs.kube_context }}" || true
+
+            if [ -z "${ENV_FILE:-}" ]; then
+              echo "No ENV_FILE provided; skipping secret creation."
+              exit 0
+            fi
 
             tmpfile=$(mktemp)
             cat > "$tmpfile" <<'ENVEOF'
