@@ -29,6 +29,11 @@ on:
         description: "Kubernetes Deployment name to restart"
         required: true
         type: string
+      secret_name:
+        description: "Kubernetes secret name to create from ENV_FILE"
+        required: false
+        type: string
+        default: "app-env"
       kube_context:
         description: "kubectl context on the server"
         required: false
@@ -125,7 +130,7 @@ jobs:
             ${{ secrets.ENV_FILE }}
             ENVEOF
 
-            kubectl -n "${{ inputs.namespace }}" create secret generic app-env \
+            kubectl -n "${{ inputs.namespace }}" create secret generic "${{ inputs.secrets_name }}" \
               --from-env-file="$tmpfile" \
               --dry-run=client -o yaml | kubectl apply -f -
 
