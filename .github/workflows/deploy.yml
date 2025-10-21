@@ -6,20 +6,34 @@ on:
         description: "GHCR image (owner/name)"
         required: true
         type: string
-      service_dir:
-        description: "Remote dir with compose.yaml"
-        required: true
-        type: string
       context:
         description: "Docker build context folder (contains Dockerfile)"
         required: false
         type: string
         default: "."
+      dockerfile:
+        description: "Dockerfile path (relative to context)"
+        required: false
+        type: string
+        default: "Dockerfile"
       build_args:
         description: "Extra build args (KEY=VAL, space-separated)"
         required: false
         type: string
         default: ""
+      namespace:
+        description: "Kubernetes namespace of the Deployment"
+        required: true
+        type: string
+      deployment:
+        description: "Kubernetes Deployment name to restart"
+        required: true
+        type: string
+      kube_context:
+        description: "kubectl context on the server"
+        required: false
+        type: string
+        default: "k3d-home"
     secrets:
       DEPLOY_HOST: { required: true }
       DEPLOY_KEY: { required: true }
@@ -44,7 +58,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & tag
+      - name: Build, Tag & Push
         run: |
           set -euo pipefail
           CTX="${{ inputs.context }}"
@@ -75,8 +89,6 @@ jobs:
           docker tag "$REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA" \
                     "$REGISTRY/${{ inputs.image_name }}:latest"
 
-      - name: Push
-        run: |
           docker push $REGISTRY/${{ inputs.image_name }}:$GITHUB_SHA
           docker push $REGISTRY/${{ inputs.image_name }}:latest
 
@@ -95,7 +107,7 @@ jobs:
           ssh-keyscan -T 10 ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Deploy via SSH
+      - name: Rollout restart on cluster
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -104,8 +116,18 @@ jobs:
           script_stop: true
           debug: true
           script: |
-            set -e
-            cd ${{ inputs.service_dir }}
-            docker pull ghcr.io/${{ inputs.image_name }}:latest
-            docker compose up -d
-            docker image prune -f
+            set -euo pipefail
+            kubectl config use-context k3d-home || true
+
+            echo "Current images:"
+            kubectl -n "${{ inputs.namespace }}" get pods -l app=${{ inputs.deployment }} -o jsonpath='{range .items[*]}{.metadata.name}{" -> "}{.spec.containers[*].image}{"\n"}{end}' || true
+
+            # Restart the deployment so it pulls :latest (ensure your Deployment uses imagePullPolicy: Always)
+            kubectl -n "${{ inputs.namespace }}" rollout restart deploy/${{ inputs.deployment }}
+
+            # Wait for it to become Ready
+            kubectl -n "${{ inputs.namespace }}" rollout status deploy/${{ inputs.deployment }} --timeout=180s
+
+            # (Optional) show the new image IDs
+            echo "New images:"
+            kubectl -n "${{ inputs.namespace }}" get pods -l app=${{ inputs.deployment }} -o jsonpath='{range .items[*]}{.metadata.name}{" -> "}{range .status.containerStatuses[*]}{.imageID}{" "}{end}{"\n"}{end}' || true
