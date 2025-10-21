@@ -107,6 +107,30 @@ jobs:
           ssh-keyscan -T 10 ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
+      - name: Apply Kubernetes secret from .env (optional)
+        if: ${{ secrets.ENV_FILE != '' }}
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: deploy
+          key_path: key.pem
+          script_stop: true
+          debug: true
+          script: |
+            set -euo pipefail
+            kubectl config use-context "${{ inputs.kube_context }}" || true
+
+            tmpfile=$(mktemp)
+            cat > "$tmpfile" <<'ENVEOF'
+            ${{ secrets.ENV_FILE }}
+            ENVEOF
+
+            kubectl -n "${{ inputs.namespace }}" create secret generic app-env \
+              --from-env-file="$tmpfile" \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            rm -f "$tmpfile"
+
       - name: Rollout restart on cluster
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -117,7 +141,7 @@ jobs:
           debug: true
           script: |
             set -euo pipefail
-            kubectl config use-context k3d-home || true
+            kubectl config use-context "${{ inputs.kube_context }}" || true
 
             echo "Current images:"
             kubectl -n "${{ inputs.namespace }}" get pods -l app=${{ inputs.deployment }} -o jsonpath='{range .items[*]}{.metadata.name}{" -> "}{.spec.containers[*].image}{"\n"}{end}' || true
